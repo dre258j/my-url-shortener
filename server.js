@@ -1,42 +1,46 @@
-const express = require('express');
-const path = require('path');
+const express = require("express");
+const path = require("path");
 const app = express();
-const port = process.env.PORT || 3000;
 
-// Middleware
 app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.static(__dirname));
 
-// Serve index.html
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
-});
-
-// In-memory database for shortened URLs
 let urlDatabase = {};
-let counter = 1;
 
-// Shorten URL logic
-app.post('/shorten', (req, res) => {
-  const { url } = req.body;
-  if (!url) {
-    return res.status(400).json({ error: 'URL is required' });
+app.post("/shorten", (req, res) => {
+  const { url, custom } = req.body;
+  let shortPath;
+
+  if (custom) {
+    if (urlDatabase[custom]) {
+      return res.json({ error: "Custom word already in use!" });
+    }
+    shortPath = custom;
+  } else {
+    // Auto-generate number
+    shortPath = Date.now().toString(36);
+    while (urlDatabase[shortPath]) {
+      shortPath = Date.now().toString(36) + Math.floor(Math.random() * 1000).toString(36);
+    }
   }
-  const shortenedUrl = `https://${req.headers.host}/${counter}`;
-  urlDatabase[counter] = url;
-  counter++;
-  res.send(`<p>Shortened URL: <a href="${shortenedUrl}" target="_blank">${shortenedUrl}</a></p>`);
+
+  urlDatabase[shortPath] = url;
+  const shortenedUrl = `https://${req.headers.host}/${shortPath}`;
+  res.json({ shortened_url: shortenedUrl });
 });
 
-// Redirect to original URL
-app.get('/:id', (req, res) => {
+app.get("/:id", (req, res) => {
   const id = req.params.id;
   const originalUrl = urlDatabase[id];
   if (originalUrl) {
     res.redirect(originalUrl);
   } else {
-    res.status(404).send('URL not found');
+    res.status(404).send("URL not found");
   }
 });
 
-module.exports = app; // ✅ Important for Vercel
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "index.html"));
+});
+
+module.exports = app;
